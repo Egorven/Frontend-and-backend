@@ -1,0 +1,30 @@
+.card {
+  padding: 16px;
+  overflow: hidden;
+}
+.card__title {
+  font-size: 50px;
+}
+.card__description {
+  font-size: 20px;
+}
+.card__img {
+  float: left;
+  margin-right: 15px;
+  margin-bottom: 10px;
+  height: 200px;
+  width: auto;
+}
+.card--accent {
+  border: 2px solid #2179b4;
+}
+
+.btn {
+  padding: 10px 14px;
+  background: #2179b4;
+  color: rgb(255, 255, 255);
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+/*# sourceMappingURL=card.css.map */
