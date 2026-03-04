@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const { nanoid } = require('nanoid');
+const bcrypt = require('bcrypt');
 const cors = require('cors');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
@@ -32,6 +33,8 @@ let products = [
   { id: nanoid(6), name: 'Скрипка Stentor Student II 4/4', categoryId: categories[5].id, description: 'Полноразмерная скрипка для обучения, еловая дека, комплект со смычком и канифолью', price: 24500, stock: 6, rating: 4.4, image: '/images/violin.jpg' },
   { id: nanoid(6), name: 'Труба Bach TR300H2', categoryId: categories[6].id, description: 'Ученическая труба, мундштук 7C в комплекте', price: 30900, stock: 4, rating: 4.9, image: '/images/flute.jpg' }
 ];
+
+let users = [];
 
 
 const swaggerOptions = {
@@ -74,6 +77,22 @@ app.use((req, res, next) => {
 });
 
 
+function findUserOr404(email, res) {
+  const user = users.find(u => u.email == email);
+  if (!user) {
+    res.status(404).json({ error: "user not found" });
+    return null;
+  }
+  return user;
+}
+async function hashPassword(password) {
+  const rounds = 10;
+  return bcrypt.hash(password, rounds);
+}
+async function verifyPassword(password, passwordHash) {
+  return bcrypt.compare(password, passwordHash);
+}
+
 function findProductOr404(id, res) {
   const product = products.find(p => p.id === id);
   if (!product) {
@@ -91,6 +110,180 @@ function findCategoryOr404(id, res) {
   }
   return category;
 }
+
+/**
+ * @openapi
+ * /api/auth/register:
+ *   post:
+ *     summary: Регистрация пользователя
+ *     description: Создает нового пользователя с хешированным паролем
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password, age, first_name, last_name]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: ivan@example.com
+ *               first_name:
+ *                 type: string
+ *                 example: Ivan
+ *               last_name:
+ *                 type: string
+ *                 example: Ivanovic
+ *               age:
+ *                 type: integer
+ *                 minimum: 1
+ *                 example: 20
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: qwerty123
+ *     responses:
+ *       201:
+ *         description: Пользователь успешно создан
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                   example: ab12cd
+ *                 email:
+ *                   type: string
+ *                   format: email
+ *                   example: ivan@example.com
+ *                 first_name:
+ *                   type: string
+ *                   example: Ivan
+ *                 last_name:
+ *                   type: string
+ *                   example: Ivanovic
+ *                 age:
+ *                   type: integer
+ *                   example: 20
+ *                 hashedPassword:
+ *                   type: string
+ *                   example: $2b$10$kO6Hq7ZKfV4cPzGm8u7mEuR7r4Xx2p9mP0q3t1yZbCq9Lh5a8b1QW
+ *       400:
+ *         description: Некорректные данные
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "email, first_name, last_name, password and age are required"
+ */
+
+app.post("/api/auth/register", async (req, res) => {
+  const { email, first_name, last_name, age, password } = req.body;
+  if (!email || !password || !first_name || !last_name || age === undefined) {
+    return res.status(400).json({ error: "email, first_name, last_name, password and age are required" });
+  }
+  const newUser = {
+    id: nanoid(6),
+    email: email,
+    first_name: first_name,
+    last_name: last_name,
+    age: Number(age),
+    hashedPassword: await hashPassword(password)
+  };
+  users.push(newUser);
+  res.status(201).json(newUser);
+});
+
+/**
+ * @openapi
+ * /api/auth/login:
+ *   post:
+ *     summary: Авторизация пользователя
+ *     description: Проверяет логин и пароль пользователя
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: ivan@example.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: qwerty123
+ *     responses:
+ *       200:
+ *         description: Успешная авторизация
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 login:
+ *                   type: boolean
+ *                   example: true
+ *       400:
+ *         description: Отсутствуют обязательные поля
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "email and password are required"
+ *       401:
+ *         description: Неверные учетные данные
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "not authentethicated"
+ *       404:
+ *         description: Пользователь не найден
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "user not found"
+ */
+
+app.post("/api/auth/login", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({
+      error: "email and password are required" });
+}
+const user = findUserOr404(email, res);
+    if (!user) return;
+    isAuthentethicated = await verifyPassword(password,
+      user.hashedPassword);
+    if (isAuthentethicated) {
+      res.status(200).json({ login: true });
+    }
+    else {
+      res.status(401).json({ error: "not authentethicated" })
+    }
+  });
+
 
 // ===== Swagger Schemas =====
 /**
@@ -316,7 +509,7 @@ app.delete("/api/categories/:id", (req, res) => {
   }
   const exists = categories.some(c => c.id === req.params.id);
   if (!exists) return res.status(404).json({ error: "Category not found" });
-  
+
   categories = categories.filter(c => c.id !== req.params.id);
   res.status(204).send();
 });
@@ -359,7 +552,7 @@ app.post("/api/products", (req, res) => {
   if (!name || price === undefined || !categoryId) {
     return res.status(400).json({ error: "Name, price and categoryId are required" });
   }
-  
+
   const category = findCategoryOr404(categoryId, res);
   if (!category) return;
 
@@ -435,7 +628,7 @@ app.get("/api/products", (req, res) => {
 app.get("/api/products/:id", (req, res) => {
   const product = findProductOr404(req.params.id, res);
   if (!product) return;
-  
+
   const category = categories.find(c => c.id === product.categoryId);
   res.json({
     product,
@@ -489,7 +682,7 @@ app.patch("/api/products/:id", (req, res) => {
     if (!category) return;
     product.categoryId = categoryId;
   }
-  
+
   if (name !== undefined) product.name = name.trim();
   if (description !== undefined) product.description = description;
   if (price !== undefined) product.price = Number(price);
@@ -556,7 +749,7 @@ app.get("/api/categories/:id/with-products", (req, res) => {
   if (!category) return;
 
   const categoryProducts = products.filter(p => p.categoryId === category.id);
-  
+
   const metrics = {
     totalProducts: categoryProducts.length,
     avgRating: categoryProducts.length > 0
