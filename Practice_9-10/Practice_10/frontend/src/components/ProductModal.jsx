@@ -12,6 +12,7 @@ export default function ProductModal({ open, categories = [], mode, initialProdu
     image: ""
   });
 
+    if (!open) return null;
 
   useEffect(() => {
     if (open && initialProduct) {
@@ -29,8 +30,6 @@ export default function ProductModal({ open, categories = [], mode, initialProdu
       setForm({ name: "", categoryId: "", description: "", price: "", stock: "", rating: "", image: "" });
     }
   }, [open, initialProduct]);
-
-  if (!open) return null;
 
   const title = mode === "edit" ? "Редактировать товар" : "Добавить товар";
 

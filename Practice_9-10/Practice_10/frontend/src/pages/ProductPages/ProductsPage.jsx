@@ -3,7 +3,18 @@ import "./ProductsPage.scss";
 
 import ProductsList from "../../components/ProductsList";
 import ProductModal from "../../components/ProductModal";
-import { api } from "../../api";
+
+import { 
+  getProducts, 
+  getProductById, 
+  createProduct, 
+  updateProduct, 
+  deleteProduct 
+} from '../../api/productsApi';
+
+import { 
+  getCategories 
+} from '../../api/categoriesApi';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -22,8 +33,8 @@ export default function ProductsPage() {
     try {
       setLoading(true);
       const [productsData, categoriesData] = await Promise.all([
-        api.getProducts(),
-        api.getCategories()  // ✅ Fetch categories
+        getProducts(),
+        getCategories()
       ]);
       setProducts(productsData);
       setCategories(categoriesData);
@@ -56,7 +67,7 @@ export default function ProductsPage() {
     const ok = window.confirm("Удалить этот товар?");
     if (!ok) return;
     try {
-      await api.deleteProduct(id);
+      await deleteProduct(id);
       setProducts((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
       console.error(err);
@@ -68,10 +79,10 @@ export default function ProductsPage() {
   const handleSubmitModal = async (payload) => {
     try {
       if (modalMode === "create") {
-        const newProduct = await api.createProduct(payload);
+        const newProduct = await createProduct(payload);
         setProducts((prev) => [...prev, newProduct]);
       } else {
-        const updatedProduct = await api.updateProduct(payload.id, payload);
+        const updatedProduct = await updateProduct(payload.id, payload);
         setProducts((prev) =>
           prev.map((p) => (p.id === payload.id ? updatedProduct : p))
         );
