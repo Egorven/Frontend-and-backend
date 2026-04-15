@@ -67,7 +67,10 @@ self.addEventListener('push', (event) => {
         body: data.body,
         icon: '/icons/favicon-128x128.png',
         badge: '/icons/favicon-48x48.png',
-        data: { reminderId: data.reminderId } // для идентификации в click
+        data: {
+            reminderId: data.reminderId,
+            reminderText: data.body
+        } // для идентификации в click
     };
     // Добавляем кнопку только если это напоминание
     if (data.reminderId) {
@@ -87,9 +90,14 @@ self.addEventListener('notificationclick', (event) => {
     if (action === 'snooze') {
         // Получаем id напоминания из данных уведомления
         const reminderId = notification.data.reminderId;
+        const reminderText = notification.data.reminderText || '';
         // Отправляем запрос на сервер для откладывания
         event.waitUntil(
-            fetch(`/snooze?reminderId=${reminderId}`, { method: 'POST' })
+            fetch(`/snooze?reminderId=${reminderId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: reminderText })
+            })
                 .then(() => notification.close())
                 .catch(err => console.error('Snooze failed:', err))
         );
