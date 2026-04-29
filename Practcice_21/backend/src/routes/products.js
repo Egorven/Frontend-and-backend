@@ -3,8 +3,11 @@ const { authMiddleware } = require('../middleware/authJwt');
 const checkRole = require('../middleware/checkRole');
 const productsStore = require('../store/products.store');
 const categoriesStore = require('../store/categories.store');
+const { cacheMiddleware, saveToCache } = require('../middleware/cache')
 
 const router = express.Router();
+
+const PRODUCTS_CACHE_TTL = 600;
 
 /**
  * @openapi
@@ -21,10 +24,17 @@ const router = express.Router();
  *       200:
  *         description: Список товаров
  */
-router.get('/', authMiddleware, checkRole('user', 'seller', 'admin'), (req, res) => {
-  const { categoryId } = req.query;
-  res.json(productsStore.getAll(categoryId));
-});
+router.get('/', authMiddleware,
+  checkRole('user', 'seller', 'admin'),
+  cacheMiddleware(() => "products:all", PRODUCTS_CACHE_TTL),
+  async (req, res) => {
+    const { categoryId } = req.query;
+    const data = productsStore.getAll(categoryId);
+    res.json(data);
+    if (req.cacheKey) {
+      await saveToCache(req.cacheKey, data, req.cacheTTL);
+    }
+  });
 
 /**
  * @openapi
@@ -96,13 +106,18 @@ router.post('/', authMiddleware, checkRole('seller', 'admin'), (req, res) => {
  *       200:
  *         description: Товар с категорией
  */
-router.get('/:id', authMiddleware, checkRole('user', 'seller', 'admin'), (req, res) => {
-  const product = productsStore.findById(req.params.id);
-  if (!product) return res.status(404).json({ error: 'Product not found' });
-
-  const category = categoriesStore.findById(product.categoryId);
-  res.json({ product, category: category || null });
-});
+router.get('/:id', authMiddleware, checkRole('user', 'seller', 'admin'),
+  cacheMiddleware((req) => `products:${req.params.id}`, PRODUCTS_CACHE_TTL),
+  async (req, res) => {
+    const product = productsStore.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    const category = categoriesStore.findById(product.categoryId);
+    res.json({ product, category: category || null });
+    if (req.cacheKey) {
+      await saveToCache(req.cacheKey, { product, category: category || null }, req.cacheTTL);
+    }
+  }
+);
 
 /**
  * @openapi
